@@ -18,8 +18,9 @@ interface Detection {
   confidence: number;
   zone: string;
   camera: string;
-  sprayer: "activated" | "standby" | "manual";
   image: string;
+  count: number;
+  rcwl_validated: boolean;
 }
 
 const PEST_IMAGES: Record<string, string> = {
@@ -30,19 +31,15 @@ const PEST_IMAGES: Record<string, string> = {
 
 // DUMMY DATA FALLBACK
 const DUMMY_DETECTIONS: Detection[] = [
-  { id: "1", timestamp: "11 Mar 2026 14:22:05", pest: "Caterpillar", confidence: 94.2, zone: "Zone A", camera: "CAM-01", sprayer: "activated", image: PEST_IMAGES.Caterpillar },
-  { id: "2", timestamp: "11 Mar 2026 13:45:18", pest: "Grasshopper", confidence: 88.7, zone: "Zone C", camera: "CAM-02", sprayer: "activated", image: PEST_IMAGES.Grasshopper },
-  { id: "3", timestamp: "11 Mar 2026 12:30:42", pest: "Caterpillar", confidence: 91.5, zone: "Zone A", camera: "CAM-01", sprayer: "standby", image: PEST_IMAGES.Caterpillar },
-  { id: "5", timestamp: "11 Mar 2026 09:52:11", pest: "Grasshopper", confidence: 83.9, zone: "Zone C", camera: "CAM-02", sprayer: "activated", image: PEST_IMAGES.Grasshopper },
-  { id: "6", timestamp: "10 Mar 2026 16:40:27", pest: "Caterpillar", confidence: 97.1, zone: "Zone A", camera: "CAM-01", sprayer: "activated", image: PEST_IMAGES.Caterpillar },
-  { id: "8", timestamp: "10 Mar 2026 11:05:02", pest: "Grasshopper", confidence: 92.4, zone: "Zone B", camera: "CAM-03", sprayer: "activated", image: PEST_IMAGES.Grasshopper },
+  { id: "1", timestamp: "11 Mar 2026 14:22:05", pest: "Caterpillar", count: 2, rcwl_validated: true, confidence: 94.2, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
+  { id: "2", timestamp: "11 Mar 2026 13:45:18", pest: "Grasshopper", count: 1, rcwl_validated: true, confidence: 88.7, zone: "Zone C", camera: "CAM-02", image: PEST_IMAGES.Grasshopper },
+  { id: "3", timestamp: "11 Mar 2026 12:30:42", pest: "Caterpillar", count: 3, rcwl_validated: false, confidence: 91.5, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
+  { id: "5", timestamp: "11 Mar 2026 09:52:11", pest: "Grasshopper", count: 1, rcwl_validated: true, confidence: 83.9, zone: "Zone C", camera: "CAM-02", image: PEST_IMAGES.Grasshopper },
+  { id: "6", timestamp: "10 Mar 2026 16:40:27", pest: "Caterpillar", count: 4, rcwl_validated: true, confidence: 97.1, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
+  { id: "8", timestamp: "10 Mar 2026 11:05:02", pest: "Grasshopper", count: 1, rcwl_validated: false, confidence: 92.4, zone: "Zone B", camera: "CAM-03", image: PEST_IMAGES.Grasshopper },
 ];
 
-const sprayerConfig: Record<string, { label: string; color: string; bg: string }> = {
-  activated: { label: "Aktif", color: "#38bdf8", bg: "rgba(56,189,248,0.15)" },
-  standby: { label: "Standby", color: "#4ade80", bg: "rgba(74,222,128,0.15)" },
-  manual: { label: "Manual", color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-};
+
 
 const PER_PAGE = 5;
 
@@ -53,7 +50,7 @@ const exportToExcel = (data: Detection[], filterType: string) => {
     "Confidence (%)": det.confidence,
     "Zona": det.zone,
     "Kamera": det.camera,
-    "Sprayer Status": sprayerConfig[det.sprayer]?.label || "Standby",
+
     "Gambar URL": det.image,
   }));
 
@@ -100,7 +97,8 @@ export function DetectionHistory() {
         confidence: data.confidence ? Math.round(data.confidence * 100) : 0, // 0.87 -> 87
         zone: data.camera_location || "Unknown Zone",
         camera: data.rpi_hostname || "Unknown Camera",
-        sprayer: data.spray_status ? "activated" : "standby",
+        count: data.count || 1,
+        rcwl_validated: data.rcwl_validated || false,
         image: data.image_url || PEST_IMAGES[data.pest_type] || PEST_IMAGES.Caterpillar,
       };
     };
@@ -220,7 +218,7 @@ export function DetectionHistory() {
         <table className="w-full border-separate border-spacing-y-3">
           <thead>
             <tr>
-              {["Asset", "Inference Info", "Confidence", "Status"].map((h) => (
+              {["Asset", "Inference Info", "Confidence"].map((h) => (
                 <th
                   key={h}
                   className="text-left px-4 text-[10px] font-black text-white/20 uppercase tracking-[0.2em]"
@@ -233,15 +231,15 @@ export function DetectionHistory() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={4} className="text-center py-8 text-white/40 text-xs">Loading detections...</td>
+                <td colSpan={3} className="text-center py-8 text-white/40 text-xs">Loading detections...</td>
               </tr>
             ) : paged.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center py-8 text-white/40 text-xs">No data available</td>
+                <td colSpan={3} className="text-center py-8 text-white/40 text-xs">No data available</td>
               </tr>
             ) : (
               paged.map((det, i) => {
-                const sprayConf = sprayerConfig[det.sprayer] || sprayerConfig.standby;
+
                 return (
                   <motion.tr
                     key={det.id}
@@ -256,16 +254,23 @@ export function DetectionHistory() {
                           <ImageWithFallback src={det.image} alt={det.pest} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                         </div>
                         <div>
-                          <div className="text-xs font-black text-white uppercase tracking-tight">{det.pest}</div>
+                          <div className="text-xs font-black text-white uppercase tracking-tight">
+                            {det.pest} <span className="text-white/40 ml-1">({det.count})</span>
+                          </div>
                           <div className="text-[9px] font-bold text-white/20 uppercase tracking-widest mt-0.5">{det.camera}</div>
                         </div>
                       </div>
                     </td>
                     <td className="py-2 px-4 bg-white/2 border-y border-white/5">
                       <div className="text-xs font-bold text-white/60">{det.timestamp.split(" ").slice(-1)[0]}</div>
-                      <div className="text-[10px] text-white/20 font-medium mt-0.5">{det.zone}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className="text-[10px] text-white/20 font-medium">{det.zone}</div>
+                        {det.rcwl_validated && (
+                          <div className="px-1.5 py-0.5 rounded border border-[#4ade80]/30 bg-[#4ade80]/10 text-[8px] font-black text-[#4ade80] uppercase tracking-widest">RCWL</div>
+                        )}
+                      </div>
                     </td>
-                    <td className="py-2 px-4 bg-white/2 border-y border-white/5">
+                    <td className="py-2 pr-4 bg-white/2 rounded-r-2xl border-y border-r border-white/5">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-black text-white">{det.confidence}%</span>
                         <div className="w-16 h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -279,14 +284,6 @@ export function DetectionHistory() {
                           />
                         </div>
                       </div>
-                    </td>
-                    <td className="py-2 pr-4 bg-white/2 rounded-r-2xl border-y border-r border-white/5 text-right">
-                      <span
-                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest"
-                        style={{ background: sprayConf.bg, color: sprayConf.color, border: `1px solid ${sprayConf.color}30` }}
-                      >
-                        {sprayConf.label}
-                      </span>
                     </td>
                   </motion.tr>
                 );

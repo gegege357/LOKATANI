@@ -34,51 +34,39 @@ const C = {
 const DEFAULT_DEVICES: Device[] = [
   {
     id: "device-001",
-    name: "Sensor Suhu",
-    location: "Area Utara Lahan",
+    name: "Sensor Gerak (RCWL)",
+    location: "Area Tanaman",
     status: "online",
-    deviceType: "Sensor Suhu",
-    metricValue: "28°C, Normal",
-    createdAt: "2026-03-10",
+    deviceType: "Sensor",
+    metricValue: "Counting Aktif",
+    createdAt: "2026-05-10",
     tools: [
-      { id: "tool-001", name: "Thermometer DHT22", type: "Sensor", status: "active", notes: "Memantau suhu real-time" },
+      { id: "tool-001", name: "RCWL-0516 Node 1", type: "Sensor", status: "active", notes: "Jalur 1" },
+      { id: "tool-002", name: "RCWL-0516 Node 2", type: "Sensor", status: "active", notes: "Jalur 1" },
     ],
   },
   {
     id: "device-002",
-    name: "Sensor Kelembaban",
-    location: "Area Selatan Lahan",
+    name: "Kamera Validasi",
+    location: "Area Utama",
     status: "online",
-    deviceType: "Sensor Kelembaban",
-    metricValue: "70%, Optimal",
-    createdAt: "2026-03-14",
+    deviceType: "Kamera",
+    metricValue: "1080p, YOLO Ready",
+    createdAt: "2026-05-10",
     tools: [
-      { id: "tool-002", name: "Humidity Sensor", type: "Sensor", status: "active", notes: "Memantau kelembaban udara" },
+      { id: "tool-003", name: "Camera Module", type: "Sensor", status: "active", notes: "Deteksi hama visual" },
     ],
   },
   {
     id: "device-003",
-    name: "Pompa Irigasi",
-    location: "Sistem Utama",
+    name: "Relay Controller",
+    location: "Panel Kontrol",
     status: "online",
-    deviceType: "Pompa Irigasi",
-    metricValue: "150 L/m, Menyala",
-    createdAt: "2026-03-15",
+    deviceType: "Actuator",
+    metricValue: "Standby",
+    createdAt: "2026-05-10",
     tools: [
-      { id: "tool-003", name: "Water Pump Motor", type: "Actuator", status: "active", notes: "Pompa air utama" },
-      { id: "tool-004", name: "Flow Meter", type: "Sensor", status: "active", notes: "Pengukur debit air" },
-    ],
-  },
-  {
-    id: "device-004",
-    name: "Gateway IoT",
-    location: "Pusat Kontrol",
-    status: "online",
-    deviceType: "Gateway IoT",
-    metricValue: "99.8%, Kuat",
-    createdAt: "2026-03-12",
-    tools: [
-      { id: "tool-005", name: "WiFi Module", type: "Communication", status: "active", notes: "Koneksi internet" },
+      { id: "tool-004", name: "Relay Switch", type: "Actuator", status: "active", notes: "Kontrol penyemprotan" },
     ],
   },
 ];
@@ -156,11 +144,7 @@ export function DevicesPage() {
     return { value: "-", label: "Belum terpasang", color: "#f59e0b" };
   };
 
-  const openAddDevice = () => {
-    setEditingDeviceId(null);
-    setDeviceForm({ name: "", location: "", status: "online", deviceType: "", metricValue: "" });
-    setShowDeviceModal(true);
-  };
+
 
   const openEditDevice = (deviceId: string) => {
     const device = devices.find((item) => item.id === deviceId);
@@ -310,14 +294,7 @@ export function DevicesPage() {
             </div>
           </div>
         </div>
-        <button
-          onClick={openAddDevice}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-semibold text-black"
-          style={{ background: "#5eead4" }}
-        >
-          <Plus className="w-4 h-4" />
-          Tambah Perangkat
-        </button>
+
       </div>
 
       <div className="grid gap-4 md:grid-cols-4 mb-6">

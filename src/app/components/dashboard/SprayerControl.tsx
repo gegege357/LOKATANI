@@ -19,7 +19,7 @@ export function SprayerControl() {
   const [cooldown, setCooldown] = useState(0);
   const [duration, setDuration] = useState(10);
   const [countdown, setCountdown] = useState(0);
-  const [sprayCount, setSprayCount] = useState(2);
+
   const [lastSpray, setLastSpray] = useState("14:22:05");
 
   useEffect(() => {
@@ -30,7 +30,6 @@ export function SprayerControl() {
           if (c <= 1) {
             setIsActive(false);
             setCooldown(300); // 5 min cooldown
-            setSprayCount((prev) => prev + 1);
             setLastSpray(new Date().toLocaleTimeString("id-ID"));
             return 0;
           }
@@ -121,13 +120,8 @@ export function SprayerControl() {
         </div>
       </div>
 
-      {/* Status display */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
-          <div className="text-[10px] font-black text-white/20 uppercase tracking-widest">Total Sprays</div>
-          <div className="text-2xl text-white font-black tracking-tight">{sprayCount}<span className="text-xs text-white/40 ml-1 font-bold uppercase">Today</span></div>
-        </div>
-        <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
+      <div className="mb-6 flex justify-end">
+        <div className="rounded-2xl p-4 flex flex-col gap-1 w-1/2" style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
           <div className="text-[10px] font-black text-white/20 uppercase tracking-widest">Last Activity</div>
           <div className="text-sm text-white font-black tracking-tight pt-1">{lastSpray}</div>
         </div>

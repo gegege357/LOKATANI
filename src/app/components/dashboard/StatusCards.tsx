@@ -143,6 +143,8 @@ export function StatusCards() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  useEffect(() => {
     const loadAlerts = () => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
