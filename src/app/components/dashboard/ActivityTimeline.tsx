@@ -79,12 +79,16 @@ export function ActivityTimeline() {
       return results;
     };
 
-    const fetchActivities = async () => {
+      const fetchActivities = async () => {
       try {
+        const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
         const { data, error } = await supabase
           .from("pest_detection")
           .select("*")
           .in("record_type", ["detection", "emergency"])
+          .gte("timestamp", todayIso)
+          .neq("pest_type", "Whitefly")
+          .neq("pest_type", "Aphid")
           .order("timestamp", { ascending: false })
           .limit(10);
 
@@ -113,7 +117,11 @@ export function ActivityTimeline() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "pest_detection" },
         (payload) => {
-          const newActivities = mapSupabaseToActivity(payload.new);
+          const row = payload.new as any;
+          const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
+          if (row.timestamp < todayIso || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+
+          const newActivities = mapSupabaseToActivity(row);
           // Sort descending
           newActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 

@@ -33,6 +33,9 @@ export function SystemHealth() {
   const [rpiHostname, setRpiHostname] = useState("rpi-hydro-01");
   const [rpiOnline, setRpiOnline]     = useState(false);
   const [lastSeen, setLastSeen]       = useState("—");
+  const [camStatus, setCamStatus]     = useState(true);
+  const [rcwlStatus, setRcwlStatus]   = useState(true);
+  const [relayStatus, setRelayStatus] = useState("IDLE");
 
   useEffect(() => {
 
@@ -52,6 +55,9 @@ export function SystemHealth() {
         const online  = (Date.now() - ts.getTime()) < 30_000;
         setRpiOnline(online);
         setLastSeen(ts.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+        setCamStatus(data.camera_status ?? true);
+        setRcwlStatus(data.rcwl_status ?? true);
+        setRelayStatus(data.system_state ?? "IDLE");
       }
     };
     loadHB();
@@ -69,6 +75,9 @@ export function SystemHealth() {
           const online = (Date.now() - ts.getTime()) < 30_000;
           setRpiOnline(online);
           setLastSeen(ts.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+          setCamStatus(row.camera_status ?? true);
+          setRcwlStatus(row.rcwl_status ?? true);
+          setRelayStatus(row.system_state ?? "IDLE");
         }
       )
       .subscribe();
@@ -79,8 +88,11 @@ export function SystemHealth() {
   }, []);
 
   const stats = [
-    { icon: Clock, label: "Last Heartbeat", value: lastSeen,                    color: C.accent },
-    { icon: Wifi,  label: "RPi Status",     value: rpiOnline ? "Online" : "Offline", color: rpiOnline ? "#4ade80" : "#ef4444" },
+    { icon: Wifi,  label: "RPi Node", value: rpiOnline ? "Online" : "Offline", color: rpiOnline ? "#4ade80" : "#ef4444" },
+    { icon: Clock, label: "Last Seen", value: lastSeen, color: C.accent },
+    { icon: Thermometer, label: "Camera", value: camStatus ? "Connected" : "Error", color: camStatus ? "#4ade80" : "#ef4444" },
+    { icon: Cpu, label: "RCWL Sensor", value: rcwlStatus ? "Active" : "Error", color: rcwlStatus ? "#4ade80" : "#ef4444" },
+    { icon: MemoryStick, label: "Relay Module", value: relayStatus === "SPRAYING" ? "Spraying" : "Standby", color: relayStatus === "SPRAYING" ? "#f59e0b" : "#4ade80" },
   ];
 
   return (
@@ -133,7 +145,7 @@ export function SystemHealth() {
       </div>
 
       {/* System Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 mt-auto pt-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-auto pt-4">
         {stats.map(({ icon: Icon, label, value, color }) => (
           <div
             key={label}
