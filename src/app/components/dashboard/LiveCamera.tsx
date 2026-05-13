@@ -21,8 +21,8 @@ interface Detection {
 }
 
 const PEST_DETECTIONS: Detection[] = [
-  { id: "d1", label: "Caterpillar", confidence: 94.2, x: 18, y: 22, w: 22, h: 20, color: "#ef4444" },
-  { id: "d2", label: "Grasshopper", confidence: 87.6, x: 62, y: 45, w: 18, h: 15, color: "#f59e0b" },
+  { id: "d1", label: "Ulat", confidence: 94.2, x: 18, y: 22, w: 22, h: 20, color: "#ef4444" },
+  { id: "d2", label: "Ulat", confidence: 87.6, x: 62, y: 45, w: 18, h: 15, color: "#ef4444" },
 ];
 
 export function LiveCamera() {
@@ -138,78 +138,10 @@ export function LiveCamera() {
           }}
         />
 
-        {/* Scanning line animation */}
-        <motion.div
-          animate={{ y: ["0%", "100%", "0%"] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-          className="absolute left-0 right-0 h-px opacity-30 pointer-events-none"
-          style={{ background: `linear-gradient(90deg, transparent, ${C.accent}, transparent)` }}
-        />
+        {/* Scanning line removed as requested */}
 
         {/* AI Processing indicator */}
-        <AnimatePresence>
-          {isDetecting && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 pointer-events-none"
-              style={{ border: `2px solid ${C.accent}40` }}
-            >
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="absolute top-2 right-2 w-5 h-5 border-2 border-transparent rounded-full"
-                style={{ borderTopColor: C.accent }}
-              />
-              <div className="absolute top-3 right-8 text-xs" style={{ color: C.accent, fontWeight: 600, fontSize: 9 }}>AI SCANNING...</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bounding Boxes */}
-        {activeDetections.map((det) => (
-          <motion.div
-            key={det.id}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute pointer-events-none"
-            style={{
-              left: `${det.x}%`,
-              top: `${det.y}%`,
-              width: `${det.w}%`,
-              height: `${det.h}%`,
-              border: `2px solid ${det.color}`,
-              boxShadow: `0 0 10px ${det.color}60, inset 0 0 10px ${det.color}10`,
-            }}
-          >
-            {/* Corner accents */}
-            {[
-              { top: -2, left: -2, borderTop: `3px solid ${det.color}`, borderLeft: `3px solid ${det.color}` },
-              { top: -2, right: -2, borderTop: `3px solid ${det.color}`, borderRight: `3px solid ${det.color}` },
-              { bottom: -2, left: -2, borderBottom: `3px solid ${det.color}`, borderLeft: `3px solid ${det.color}` },
-              { bottom: -2, right: -2, borderBottom: `3px solid ${det.color}`, borderRight: `3px solid ${det.color}` },
-            ].map((corner, i) => (
-              <div key={i} className="absolute w-3 h-3" style={corner as any} />
-            ))}
-
-            {/* Label */}
-            <div
-              className="absolute -top-6 left-0 px-2 py-0.5 rounded flex items-center gap-1 whitespace-nowrap"
-              style={{
-                background: det.color,
-                fontSize: 10,
-                fontWeight: 700,
-                color: "white",
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              <AlertTriangle className="w-2.5 h-2.5" />
-              {det.label} {det.confidence.toFixed(1)}%
-            </div>
-          </motion.div>
-        ))}
+        {/* Bounding Boxes and scanning overlay removed as requested */}
 
         {/* Camera info overlay */}
         <div

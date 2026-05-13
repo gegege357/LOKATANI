@@ -52,11 +52,12 @@ export function ActivityTimeline() {
       const results: Activity[] = [];
       const timestamp = new Date(data.timestamp);
       
+      const translatedPest = data.pest_type === "Grasshopper" ? "Belalang" : data.pest_type === "Caterpillar" ? "Ulat" : data.pest_type;
       // Aktivitas deteksi
       results.push({
         id: `pest-${data.id}`,
         type: "pest_detected",
-        message: `${data.pest_type} Terdeteksi`,
+        message: `${translatedPest} Terdeteksi`,
         detail: `Kamera ${data.rpi_hostname} - Zona ${data.camera_location}`,
         timestamp,
         severity: "critical",
@@ -87,6 +88,7 @@ export function ActivityTimeline() {
           .select("*")
           .in("record_type", ["detection", "emergency"])
           .gte("timestamp", todayIso)
+          .neq("rpi_hostname", "USEP")
           .neq("pest_type", "Whitefly")
           .neq("pest_type", "Aphid")
           .order("timestamp", { ascending: false })
@@ -119,7 +121,7 @@ export function ActivityTimeline() {
         (payload) => {
           const row = payload.new as any;
           const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
-          if (row.timestamp < todayIso || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+          if (row.timestamp < todayIso || row.rpi_hostname === "USEP" || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
 
           const newActivities = mapSupabaseToActivity(row);
           // Sort descending

@@ -24,6 +24,7 @@ export function StatusCards() {
   const [relayActive, setRelayActive]         = useState(false);
   const [rpiOnline, setRpiOnline]             = useState(false);
   const [systemState, setSystemState]         = useState("IDLE");
+  const [activeHostname, setActiveHostname]   = useState("Offline");
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -33,8 +34,12 @@ export function StatusCards() {
       // Today detections
       const { data: todayData } = await supabase
         .from("pest_detection")
-        .select("id, spray_status, rcwl_status, record_type")
-        .gte("timestamp", today.toISOString());
+        .select("id, spray_status, rcwl_status, record_type, rpi_hostname, pest_type")
+        .gte("timestamp", today.toISOString())
+        .neq("rpi_hostname", "USEP")
+        .neq("pest_type", "Whitefly")
+        .neq("pest_type", "Aphid")
+        .neq("pest_type", "Grasshopper");
 
       if (todayData) {
         const detections = todayData.filter((d: any) => d.record_type === "detection");
@@ -46,7 +51,7 @@ export function StatusCards() {
       // Latest heartbeat for device status
       const { data: hb } = await supabase
         .from("pest_detection")
-        .select("camera_status, rcwl_status, relay_status, system_state, timestamp")
+        .select("camera_status, rcwl_status, relay_status, system_state, timestamp, rpi_hostname")
         .eq("record_type", "heartbeat")
         .order("timestamp", { ascending: false })
         .limit(1)
@@ -59,6 +64,7 @@ export function StatusCards() {
         setRelayActive(hb.relay_status);
         setRpiOnline(isRecent);
         setSystemState(hb.system_state ?? "IDLE");
+        setActiveHostname(isRecent ? (hb.rpi_hostname || "Active Node") : "Offline");
       }
     };
 
@@ -75,6 +81,8 @@ export function StatusCards() {
           const ts  = new Date(row.timestamp);
           const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 
+          if (row.rpi_hostname === "USEP") return;
+
           if (row.record_type === "heartbeat") {
             const isRecent = (Date.now() - ts.getTime()) < 30_000;
             setCameraOnline(row.camera_status && isRecent);
@@ -82,8 +90,9 @@ export function StatusCards() {
             setRelayActive(row.relay_status);
             setRpiOnline(isRecent);
             setSystemState(row.system_state ?? "IDLE");
+            setActiveHostname(isRecent ? (row.rpi_hostname || "Active Node") : "Offline");
           }
-          if (row.record_type === "detection" && ts >= todayStart) {
+          if (row.record_type === "detection" && ts >= todayStart && row.pest_type !== "Grasshopper") {
             setPestCountToday((p) => p + 1);
             if (row.spray_status) setSprayCountToday((p) => p + 1);
           }
@@ -136,9 +145,9 @@ export function StatusCards() {
     },
     {
       id: "camera",
-      title: "Kamera",
-      value: systemState,
-      sub: rpiOnline ? "RPi online" : "RPi offline",
+      title: "Perangkat",
+      value: activeHostname,
+      sub: rpiOnline ? `Status: ${systemState}` : "RPi offline",
       status: rpiOnline ? (cameraOnline ? "active" : "warning") : "offline",
       statusLabel: rpiOnline ? (cameraOnline ? "Rekam" : "Standby") : "Offline",
       icon: Camera,

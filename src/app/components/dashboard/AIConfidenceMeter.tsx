@@ -64,9 +64,13 @@ export function AIConfidenceMeter() {
     const fetchLatest = async () => {
       const { data } = await supabase
         .from("pest_detection")
-        .select("pest_type, confidence")
+        .select("pest_type, confidence, rpi_hostname")
         .eq("record_type", "detection")
         .not("pest_type", "is", null)
+        .neq("rpi_hostname", "USEP")
+        .neq("pest_type", "Grasshopper")
+        .neq("pest_type", "Whitefly")
+        .neq("pest_type", "Aphid")
         .order("timestamp", { ascending: false })
         .limit(5);
 
@@ -93,6 +97,8 @@ export function AIConfidenceMeter() {
         (payload) => {
           const row = payload.new as any;
           if (row.record_type !== "detection" || !row.pest_type) return;
+          if (row.rpi_hostname === "USEP" || row.pest_type === "Grasshopper" || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+          
           const conf = row.confidence <= 1 ? row.confidence * 100 : row.confidence;
           setCurrentConf(+conf.toFixed(1));
           setRecentDets((prev) => [

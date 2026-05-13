@@ -12,6 +12,8 @@ const C = {
 };
 
 const PEST_COLORS: Record<string, string> = {
+  Ulat: "#ef4444",
+  Belalang: "#f59e0b",
   Caterpillar: "#ef4444",
   Grasshopper: "#f59e0b",
   default:     "#38bdf8",
@@ -33,22 +35,27 @@ export function SnapshotGallery() {
         .select("id, pest_type, confidence, timestamp, image_url")
         .eq("record_type", "detection")
         .gte("timestamp", todayIso)
+        .neq("rpi_hostname", "USEP")
         .neq("pest_type", "Whitefly")
         .neq("pest_type", "Aphid")
+        .neq("pest_type", "Grasshopper")
         .not("image_url", "is", null)
         .neq("image_url", "")
         .order("timestamp", { ascending: false })
         .limit(6);
 
       if (data && data.length > 0) {
-        setSnaps(data.map((d: any) => ({
-          id:         d.id,
-          pest:       d.pest_type ?? "Unknown",
-          confidence: d.confidence <= 1 ? +(d.confidence * 100).toFixed(1) : +d.confidence.toFixed(1),
-          time:       new Date(d.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
-          image:      d.image_url,
-          color:      PEST_COLORS[d.pest_type] ?? PEST_COLORS.default,
-        })));
+        setSnaps(data.map((d: any) => {
+          const translatedPest = d.pest_type === "Grasshopper" ? "Belalang" : d.pest_type === "Caterpillar" ? "Ulat" : (d.pest_type || "Unknown");
+          return {
+            id:         d.id,
+            pest:       translatedPest,
+            confidence: d.confidence <= 1 ? +(d.confidence * 100).toFixed(1) : +d.confidence.toFixed(1),
+            time:       new Date(d.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+            image:      d.image_url,
+            color:      PEST_COLORS[translatedPest] ?? PEST_COLORS.default,
+          };
+        }));
       } else {
         setSnaps([]);
       }
@@ -61,14 +68,16 @@ export function SnapshotGallery() {
         { event: "INSERT", schema: "public", table: "pest_detection" },
         (payload) => {
           const row = payload.new as any;
-          if (row.record_type !== "detection" || !row.image_url || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+          if (row.record_type !== "detection" || !row.image_url || row.rpi_hostname === "USEP" || row.pest_type === "Whitefly" || row.pest_type === "Aphid" || row.pest_type === "Grasshopper") return;
+          
+          const translatedPest = row.pest_type === "Caterpillar" ? "Ulat" : (row.pest_type || "Unknown");
           const snap: Snap = {
             id:         row.id,
-            pest:       row.pest_type ?? "Unknown",
+            pest:       translatedPest,
             confidence: row.confidence <= 1 ? +(row.confidence * 100).toFixed(1) : +row.confidence.toFixed(1),
             time:       new Date(row.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
             image:      row.image_url,
-            color:      PEST_COLORS[row.pest_type] ?? PEST_COLORS.default,
+            color:      PEST_COLORS[translatedPest] ?? PEST_COLORS.default,
           };
           setSnaps((prev) => [snap, ...prev].slice(0, 6));
         }

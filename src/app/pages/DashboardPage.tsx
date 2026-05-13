@@ -2,7 +2,6 @@ import React from "react";
 import { StatusCards } from "../components/dashboard/StatusCards";
 import { EmergencyStop } from "../components/dashboard/EmergencyStop";
 import { AIConfidenceMeter } from "../components/dashboard/AIConfidenceMeter";
-import { SystemHealth } from "../components/dashboard/SystemHealth";
 import { SprayerControl } from "../components/dashboard/SprayerControl";
 import { ActivityTimeline } from "../components/dashboard/ActivityTimeline";
 import { DetectionHistory } from "../components/dashboard/DetectionHistory";
@@ -54,28 +53,30 @@ export function DashboardPage() {
       {/* Status Cards Row */}
       <StatusCards />
 
-      {/* Main Grid */}
+      {/* Main Grid: Intelligence Row */}
       <div className="px-4 lg:px-6 mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* AI Confidence Meter */}
+        {/* Intelligence Panel - Spans 2 cols */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="lg:col-span-2"
+        >
+          <AnalyticsPanel />
+        </motion.div>
+
+        {/* AI Confidence Meter - Spans 1 col */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
+          className="lg:col-span-1"
         >
           <AIConfidenceMeter />
         </motion.div>
-
-        {/* System Health */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <SystemHealth />
-        </motion.div>
       </div>
 
-      {/* Second Row */}
+      {/* Second Row: Control & Timeline */}
       <div className="px-4 lg:px-6 mt-4 grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Sprayer Control */}
         <motion.div
@@ -97,7 +98,7 @@ export function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Third Row - Snapshot Gallery full width */}
+      {/* Third Row: Snapshot Gallery */}
       <div className="px-4 lg:px-6 mt-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -108,25 +109,14 @@ export function DashboardPage() {
         </motion.div>
       </div>
 
-      {/* Third Row - Detection History full width */}
-      <div className="px-4 lg:px-6 mt-4">
+      {/* Fourth Row: Detection History */}
+      <div className="px-4 lg:px-6 mt-4 mb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
           <DetectionHistory />
-        </motion.div>
-      </div>
-
-      {/* Analytics Row */}
-      <div className="px-4 lg:px-6 mt-4 mb-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-        >
-          <AnalyticsPanel />
         </motion.div>
       </div>
     </div>

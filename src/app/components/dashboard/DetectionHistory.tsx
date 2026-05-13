@@ -30,14 +30,7 @@ const PEST_IMAGES: Record<string, string> = {
 };
 
 // DUMMY DATA FALLBACK
-const DUMMY_DETECTIONS: Detection[] = [
-  { id: "1", timestamp: "11 Mar 2026 14:22:05", pest: "Caterpillar", count: 2, rcwl_validated: true, confidence: 94.2, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
-  { id: "2", timestamp: "11 Mar 2026 13:45:18", pest: "Grasshopper", count: 1, rcwl_validated: true, confidence: 88.7, zone: "Zone C", camera: "CAM-02", image: PEST_IMAGES.Grasshopper },
-  { id: "3", timestamp: "11 Mar 2026 12:30:42", pest: "Caterpillar", count: 3, rcwl_validated: false, confidence: 91.5, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
-  { id: "5", timestamp: "11 Mar 2026 09:52:11", pest: "Grasshopper", count: 1, rcwl_validated: true, confidence: 83.9, zone: "Zone C", camera: "CAM-02", image: PEST_IMAGES.Grasshopper },
-  { id: "6", timestamp: "10 Mar 2026 16:40:27", pest: "Caterpillar", count: 4, rcwl_validated: true, confidence: 97.1, zone: "Zone A", camera: "CAM-01", image: PEST_IMAGES.Caterpillar },
-  { id: "8", timestamp: "10 Mar 2026 11:05:02", pest: "Grasshopper", count: 1, rcwl_validated: false, confidence: 92.4, zone: "Zone B", camera: "CAM-03", image: PEST_IMAGES.Grasshopper },
-];
+const DUMMY_DETECTIONS: Detection[] = [];
 
 
 
@@ -93,7 +86,7 @@ export function DetectionHistory() {
       return {
         id: data.id || Math.random().toString(),
         timestamp: formattedDate,
-        pest: data.pest_type || "Unknown",
+        pest: data.pest_type === "Caterpillar" ? "Ulat" : (data.pest_type || "Unknown"),
         confidence: data.confidence ? Math.round(data.confidence * 100) : 0, // 0.87 -> 87
         zone: data.camera_location || "Unknown Zone",
         camera: data.rpi_hostname || "Unknown Camera",
@@ -111,8 +104,10 @@ export function DetectionHistory() {
           .select("*")
           .eq("record_type", "detection")
           .gte("timestamp", todayIso)
+          .neq("rpi_hostname", "USEP")
           .neq("pest_type", "Whitefly")
           .neq("pest_type", "Aphid")
+          .neq("pest_type", "Grasshopper")
           .order("timestamp", { ascending: false });
 
         if (error) {
@@ -144,8 +139,8 @@ export function DetectionHistory() {
           const row = payload.new as any;
           const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
           
-          // Only show detection records, not heartbeats, not Whitefly/Aphid, and only from today
-          if (row.record_type !== "detection" || row.pest_type === "Whitefly" || row.pest_type === "Aphid" || row.timestamp < todayIso) return;
+          // Only show detection records, not heartbeats, not Whitefly/Aphid/Grasshopper, not USEP, and only from today
+          if (row.record_type !== "detection" || row.rpi_hostname === "USEP" || row.pest_type === "Whitefly" || row.pest_type === "Aphid" || row.pest_type === "Grasshopper" || row.timestamp < todayIso) return;
           const newDetection = mapSupabaseToDetection(row);
           setDetections((prev) => {
             return [newDetection, ...prev];

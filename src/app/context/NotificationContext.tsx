@@ -16,6 +16,7 @@ export interface Notification {
   timestamp: Date;
   read: boolean;
   severity: "critical" | "warning" | "info";
+  imageUrl?: string;
 }
 
 interface NotificationContextType {
@@ -34,62 +35,17 @@ const NotificationContext = createContext<NotificationContextType | null>(null);
 
 const STORAGE_EMAIL_PREF = "lokatani_email_notif";
 
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n1",
-    type: "pest_detected",
-    title: "Pest Detected: Caterpillar",
-    message: "Camera 1 detected Caterpillar with 94.2% confidence at Zone A",
-    timestamp: new Date(Date.now() - 2 * 60 * 1000),
-    read: false,
-    severity: "critical",
-  },
-  {
-    id: "n2",
-    type: "sprayer_activated",
-    title: "Sprayer Activated",
-    message: "Auto-spray triggered for Zone A after pest detection",
-    timestamp: new Date(Date.now() - 2.5 * 60 * 1000),
-    read: false,
-    severity: "warning",
-  },
-  {
-    id: "n3",
-    type: "motion_detected",
-    title: "Motion Detected",
-    message: "PIR sensor triggered in Zone B – no pest confirmed",
-    timestamp: new Date(Date.now() - 15 * 60 * 1000),
-    read: false,
-    severity: "info",
-  },
-  {
-    id: "n4",
-    type: "pest_detected",
-    title: "Pest Detected: Grasshopper",
-    message: "Camera 2 detected Grasshopper with 88.7% confidence at Zone C",
-    timestamp: new Date(Date.now() - 45 * 60 * 1000),
-    read: true,
-    severity: "critical",
-  },
-  {
-    id: "n5",
-    type: "system_alert",
-    title: "High CPU Usage",
-    message: "Raspberry Pi CPU usage exceeded 85% – consider restarting",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-    read: true,
-    severity: "warning",
-  },
-];
+const INITIAL_NOTIFICATIONS: Notification[] = [];
 
+// Generate HTML template email yang cantik
 // Generate HTML template email yang cantik
 function buildEmailHtml(n: Omit<Notification, "id" | "timestamp" | "read">, userEmail: string): string {
   const severityColor = n.severity === "critical" ? "#ef4444" : n.severity === "warning" ? "#f59e0b" : "#90C67C";
-  const severityLabel = n.severity === "critical" ? "KRITIS" : n.severity === "warning" ? "PERINGATAN" : "INFO";
+  const severityLabel = n.severity === "critical" ? "🚨 KRITIS" : n.severity === "warning" ? "⚠️ PERINGATAN" : "ℹ️ INFO";
   const typeIcon = n.type === "pest_detected" ? "🐛" : n.type === "sprayer_activated" ? "💧" : n.type === "motion_detected" ? "📡" : "⚙️";
   const now = new Date().toLocaleString("id-ID", {
     weekday: "long", year: "numeric", month: "long",
-    day: "numeric", hour: "2-digit", minute: "2-digit"
+    day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit"
   });
 
   return `
@@ -100,112 +56,98 @@ function buildEmailHtml(n: Omit<Notification, "id" | "timestamp" | "read">, user
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${n.title}</title>
 </head>
-<body style="margin:0;padding:0;background:#0a2818;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a2818;padding:32px 16px;">
+<body style="margin:0;padding:0;background-color:#05140d;font-family:'Segoe UI',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#05140d;padding:40px 10px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-
-          <!-- Header Logo -->
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#0d2b1f;border-radius:32px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);box-shadow:0 30px 60px rgba(0,0,0,0.6);">
+          
+          <!-- Header Accent Bar -->
           <tr>
-            <td style="padding-bottom:24px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:10px;">
-                <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#328E6E,#67AE6E);display:inline-block;line-height:40px;text-align:center;font-size:20px;">🌿</div>
-                <span style="font-size:22px;font-weight:700;color:#90C67C;letter-spacing:-0.5px;">LOKATANI</span>
-              </div>
-              <p style="margin:6px 0 0;font-size:12px;color:rgba(255,255,255,0.35);">Sistem Monitoring Hama Otomatis</p>
+            <td style="height:6px;background:linear-gradient(90deg,${severityColor},#90C67C);"></td>
+          </tr>
+
+          <!-- Header Logo Section -->
+          <tr>
+            <td style="padding:40px 40px 20px;text-align:center;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <div style="width:56px;height:56px;background:rgba(144,198,124,0.1);border-radius:18px;display:inline-block;line-height:56px;text-align:center;font-size:28px;border:1px solid rgba(144,198,124,0.2);">🌿</div>
+                    <div style="margin-top:16px;font-size:24px;font-weight:800;color:#90C67C;letter-spacing:-1px;text-transform:uppercase;">LOKATANI <span style="color:white;opacity:0.4;font-weight:400;">GUARD</span></div>
+                    <div style="margin-top:4px;font-size:11px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:2px;font-weight:700;">Automatic Pest Control System</div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
-          <!-- Alert Badge -->
+          <!-- Severity Badge -->
           <tr>
-            <td style="padding-bottom:16px;text-align:center;">
-              <span style="display:inline-block;background:${severityColor}22;border:1px solid ${severityColor}55;color:${severityColor};padding:4px 14px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:1px;">
+            <td style="padding:0 40px 30px;text-align:center;">
+              <span style="background:${severityColor}15;color:${severityColor};padding:6px 16px;border-radius:100px;font-size:11px;font-weight:800;letter-spacing:1.5px;border:1px solid ${severityColor}30;display:inline-block;">
                 ${severityLabel}
               </span>
             </td>
           </tr>
 
-          <!-- Main Card -->
+          <!-- Main Content -->
           <tr>
-            <td>
-              <div style="background:rgba(13,43,31,0.95);border:1px solid rgba(144,198,124,0.2);border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-
-                <!-- Card Header -->
-                <div style="background:linear-gradient(135deg,${severityColor}22,${severityColor}11);border-bottom:1px solid ${severityColor}33;padding:24px 28px;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td>
-                        <div style="font-size:32px;margin-bottom:8px;">${typeIcon}</div>
-                        <h1 style="margin:0;font-size:20px;font-weight:700;color:white;line-height:1.3;">${n.title}</h1>
-                        <p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.7);line-height:1.5;">${n.message}</p>
-                      </td>
-                    </tr>
-                  </table>
+            <td style="padding:0 40px 40px;">
+              <div style="background:rgba(255,255,255,0.03);border-radius:24px;padding:32px;border:1px solid rgba(255,255,255,0.05);">
+                <div style="font-size:36px;margin-bottom:16px;">${typeIcon}</div>
+                <h2 style="margin:0;font-size:22px;font-weight:800;color:white;line-height:1.2;">${n.title}</h2>
+                <p style="margin:16px 0 0;font-size:15px;color:rgba(255,255,255,0.6);line-height:1.6;">${n.message}</p>
+                
+                ${n.imageUrl ? `
+                <div style="margin-top:24px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+                  <img src="${n.imageUrl}" alt="Pest Snapshot" style="width:100%;height:auto;display:block;background-color:#000;">
+                  <div style="padding:10px;background:rgba(0,0,0,0.4);text-align:center;font-size:11px;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;">Snapshot dari Kamera Raspberry Pi</div>
                 </div>
+                ` : ''}
 
-                <!-- Card Body -->
-                <div style="padding:24px 28px;">
-                  <!-- Detail Rows -->
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td style="padding-bottom:12px;">
-                        <table width="100%" cellpadding="0" cellspacing="0">
-                          <tr>
-                            <td style="width:50%;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-                              <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;">Tipe Notifikasi</div>
-                              <div style="font-size:13px;color:white;font-weight:600;">${n.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                            </td>
-                            <td style="width:4px;"></td>
-                            <td style="width:50%;padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-                              <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;">Tingkat Urgensi</div>
-                              <div style="font-size:13px;color:${severityColor};font-weight:600;">${severityLabel}</div>
-                            </td>
-                          </tr>
-                        </table>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="padding-bottom:20px;">
-                        <table width="100%" cellpadding="0" cellspacing="0">
-                          <tr>
-                            <td style="padding:10px 12px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-                              <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;">Waktu Deteksi</div>
-                              <div style="font-size:13px;color:white;font-weight:600;">${now}</div>
-                            </td>
-                          </tr>
-                        </table>
-                      </td>
-                    </tr>
-                  </table>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background:rgba(0,0,0,0.2);border-radius:16px;">
+                  <tr>
+                    <td style="padding:20px;">
+                      <div style="font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px;">Waktu Kejadian</div>
+                      <div style="font-size:14px;color:white;font-weight:600;">${now}</div>
+                    </td>
+                  </tr>
+                </table>
 
-                  <!-- CTA Button -->
-                  <div style="text-align:center;">
-                    <a href="https://lokatani.vercel.app" style="display:inline-block;background:linear-gradient(135deg,#328E6E,#67AE6E);color:white;text-decoration:none;padding:12px 32px;border-radius:12px;font-size:14px;font-weight:600;letter-spacing:0.2px;">
-                      Lihat Dashboard →
-                    </a>
-                  </div>
-                </div>
-
-                <!-- Footer -->
-                <div style="padding:16px 28px;border-top:1px solid rgba(255,255,255,0.06);">
-                  <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;">
-                    Email ini dikirim ke <strong style="color:rgba(255,255,255,0.4);">${userEmail}</strong> karena Anda mengaktifkan Email Notifikasi di LOKATANI.<br>
-                    Untuk menonaktifkan, pergi ke <strong style="color:#90C67C;">Settings → Notifikasi → Email Alert</strong>
-                  </p>
+                <div style="margin-top:32px;text-align:center;">
+                  <a href="https://lokataniguard.vercel.app" style="display:inline-block;background:linear-gradient(135deg,#328E6E,#67AE6E);color:white;text-decoration:none;padding:16px 40px;border-radius:16px;font-size:15px;font-weight:700;box-shadow:0 10px 20px rgba(50,142,110,0.3);">
+                    BUKA DASHBOARD UTAMA
+                  </a>
                 </div>
               </div>
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer Information -->
           <tr>
-            <td style="padding-top:24px;text-align:center;">
-              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.2);">© 2026 LOKATANI · Sistem Deteksi Hama Otomatis</p>
+            <td style="padding:30px 40px;background-color:rgba(0,0,0,0.2);text-align:center;">
+              <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);line-height:1.5;">
+                Email ini dikirim otomatis ke <span style="color:#90C67C;font-weight:600;">${userEmail}</span><br>
+                karena Anda mengaktifkan notifikasi kritis di sistem LOKATANI.<br><br>
+                LOKATANI GUARD v5.0 • Smart Hydroponic Monitoring
+              </p>
             </td>
           </tr>
 
         </table>
+
+        <!-- Copyright & Unsubscribe -->
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;margin-top:24px;">
+          <tr>
+            <td align="center">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.15);font-weight:500;">
+                © 2026 LOKATANI Indonesia. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+
       </td>
     </tr>
   </table>
@@ -301,6 +243,87 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     },
     [emailNotifEnabled]
   );
+
+  // ── INTEGRASI REAL-TIME & HISTORY NOTIFIKASI ──
+  useEffect(() => {
+    // 1. Fetch history notifications from Supabase
+    const fetchHistory = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("pest_detection")
+          .select("*")
+          .in("record_type", ["detection", "emergency"])
+          .neq("rpi_hostname", "USEP")
+          .neq("pest_type", "Grasshopper")
+          .neq("pest_type", "Whitefly")
+          .neq("pest_type", "Aphid")
+          .order("timestamp", { ascending: false })
+          .limit(20);
+
+        if (data) {
+          const historyNotifs: Notification[] = data.map((row) => {
+            const translatedPest = row.pest_type === "Caterpillar" ? "Ulat" : row.pest_type;
+            const isEmergency = row.record_type === "emergency" && row.emergency;
+            
+            return {
+              id: row.id,
+              type: isEmergency ? "system_alert" : "pest_detected",
+              title: isEmergency ? "🛑 EMERGENCY STOP AKTIF" : `🚨 Hama Terdeteksi: ${translatedPest}`,
+              message: isEmergency 
+                ? `Sistem dihentikan secara darurat pada ${row.rpi_hostname}.`
+                : `Ditemukan ${row.count} ekor ${translatedPest} di ${row.camera_location} dengan tingkat keyakinan ${Math.round(row.confidence * 100)}%.`,
+              severity: "critical",
+              timestamp: new Date(row.timestamp),
+              read: true, // History is marked as read by default to avoid clutter
+              imageUrl: row.image_url || undefined,
+            };
+          });
+          setNotifications(historyNotifs);
+        }
+      } catch (err) {
+        console.error("Failed to fetch notification history:", err);
+      }
+    };
+
+    fetchHistory();
+
+    // 2. Real-time listener
+    const channel = supabase
+      .channel("realtime_notifications")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "pest_detection" },
+        (payload) => {
+          const row = payload.new as any;
+          
+          // Filter out dummy data
+          if (row.rpi_hostname === "USEP" || row.pest_type === "Grasshopper" || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+
+          if (row.record_type === "detection") {
+            const translatedPest = row.pest_type === "Caterpillar" ? "Ulat" : row.pest_type;
+            addNotification({
+              type: "pest_detected",
+              title: `🚨 Hama Terdeteksi: ${translatedPest}`,
+              message: `Ditemukan ${row.count} ekor ${translatedPest} di ${row.camera_location} dengan tingkat keyakinan ${Math.round(row.confidence * 100)}%.`,
+              severity: "critical",
+              imageUrl: row.image_url || undefined,
+            });
+          } else if (row.record_type === "emergency" && row.emergency) {
+            addNotification({
+              type: "system_alert",
+              title: "🛑 EMERGENCY STOP AKTIF",
+              message: `Sistem dihentikan secara darurat pada ${row.rpi_hostname}.`,
+              severity: "critical",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [addNotification]);
 
   const sendDigestEmail = useCallback(async () => {
     try {
