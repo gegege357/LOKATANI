@@ -41,7 +41,7 @@ const DUMMY_DETECTIONS: Detection[] = [
 
 
 
-const PER_PAGE = 5;
+const PER_PAGE = 10;
 
 const exportToExcel = (data: Detection[], filterType: string) => {
   const excelData = data.map((det) => ({
@@ -105,24 +105,28 @@ export function DetectionHistory() {
 
     const fetchDetections = async () => {
       try {
+        const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
         const { data, error } = await supabase
-          .from("pest_detections")
+          .from("pest_detection")
           .select("*")
+          .eq("record_type", "detection")
+          .gte("timestamp", todayIso)
+          .neq("pest_type", "Whitefly")
+          .neq("pest_type", "Aphid")
           .order("timestamp", { ascending: false });
 
         if (error) {
-          console.warn("Table pest_detections not found or error, using dummy data.", error);
-          setDetections(DUMMY_DETECTIONS);
+          console.warn("Table pest_detection not found or error.", error);
+          setDetections([]);
         } else if (data && data.length > 0) {
           const mappedData = data.map(mapSupabaseToDetection);
           setDetections(mappedData);
         } else {
-          // Jika tabel ada tapi kosong, tetap tampilkan dummy agar UI tidak kosong (bisa diubah sesuai kebutuhan)
-          setDetections(DUMMY_DETECTIONS); 
+          setDetections([]); 
         }
       } catch (err) {
-        console.warn("Fetch failed, using dummy data.", err);
-        setDetections(DUMMY_DETECTIONS);
+        console.warn("Fetch failed.", err);
+        setDetections([]);
       } finally {
         setIsLoading(false);
       }
@@ -132,19 +136,18 @@ export function DetectionHistory() {
 
     // Subscribe to realtime inserts
     const channel = supabase
-      .channel("pest_detections_changes")
+      .channel("pest_detection_history")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "pest_detections" },
+        { event: "INSERT", schema: "public", table: "pest_detection" },
         (payload) => {
-          const newDetection = mapSupabaseToDetection(payload.new);
-          // Tambahkan data baru ke paling atas, jika sebelumnya dummy, kita replace sekalian dengan data asli?
-          // Agar aman, tambahkan ke list yang ada.
+          const row = payload.new as any;
+          const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
+          
+          // Only show detection records, not heartbeats, not Whitefly/Aphid, and only from today
+          if (row.record_type !== "detection" || row.pest_type === "Whitefly" || row.pest_type === "Aphid" || row.timestamp < todayIso) return;
+          const newDetection = mapSupabaseToDetection(row);
           setDetections((prev) => {
-            // Jika isi prev hanya dummy, mungkin kita ingin hapus dummynya saat data asli masuk
-            if (prev === DUMMY_DETECTIONS) {
-              return [newDetection];
-            }
             return [newDetection, ...prev];
           });
         }

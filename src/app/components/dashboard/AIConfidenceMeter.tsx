@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Brain, TrendingUp, Target } from "lucide-react";
+import { supabase } from "../../../lib/supabase";
 
 const C = {
   primary: "#328E6E",
@@ -47,20 +48,62 @@ function CircularGauge({ value, max = 100, size = 120, strokeWidth = 10, color }
   );
 }
 
-const RECENT_DETECTIONS = [
-  { label: "Caterpillar", confidence: 94.2, color: "#ef4444" },
-  { label: "Grasshopper", confidence: 87.6, color: "#f59e0b" },
-];
+interface RecentDet { label: string; confidence: number; color: string; }
+
+const PEST_COLORS: Record<string, string> = {
+  Caterpillar: "#ef4444",
+  Grasshopper: "#f59e0b",
+  default:     "#38bdf8",
+};
 
 export function AIConfidenceMeter() {
-  const [currentConf, setCurrentConf] = useState(94.2);
-  const [modelAcc, setModelAcc] = useState(96.8);
+  const [currentConf, setCurrentConf] = useState(0);
+  const [recentDets, setRecentDets]   = useState<RecentDet[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentConf(70 + Math.random() * 25);
-    }, 3500);
-    return () => clearInterval(interval);
+    const fetchLatest = async () => {
+      const { data } = await supabase
+        .from("pest_detection")
+        .select("pest_type, confidence")
+        .eq("record_type", "detection")
+        .not("pest_type", "is", null)
+        .order("timestamp", { ascending: false })
+        .limit(5);
+
+      if (data && data.length > 0) {
+        const latest = data[0];
+        const conf   = latest.confidence ?? 0;
+        // stored as 0–1 fraction
+        setCurrentConf(conf <= 1 ? conf * 100 : conf);
+
+        const recent = data.map((d: any) => ({
+          label:      d.pest_type ?? "Unknown",
+          confidence: d.confidence <= 1 ? +(d.confidence * 100).toFixed(1) : +d.confidence.toFixed(1),
+          color:      PEST_COLORS[d.pest_type] ?? PEST_COLORS.default,
+        }));
+        setRecentDets(recent);
+      }
+    };
+    fetchLatest();
+
+    const channel = supabase
+      .channel("ai_confidence_meter")
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "pest_detection" },
+        (payload) => {
+          const row = payload.new as any;
+          if (row.record_type !== "detection" || !row.pest_type) return;
+          const conf = row.confidence <= 1 ? row.confidence * 100 : row.confidence;
+          setCurrentConf(+conf.toFixed(1));
+          setRecentDets((prev) => [
+            { label: row.pest_type, confidence: +conf.toFixed(1), color: PEST_COLORS[row.pest_type] ?? PEST_COLORS.default },
+            ...prev,
+          ].slice(0, 5));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const confColor =
@@ -108,7 +151,7 @@ export function AIConfidenceMeter() {
         <div className="mt-6 flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/5 border border-white/5">
           <Target className="w-3.5 h-3.5 text-[#90C67C]" />
           <span className="text-[11px] text-white/60 font-bold uppercase tracking-tight">
-            Accuracy: <span className="text-[#4ade80] font-black ml-1">{modelAcc}%</span>
+            Confidence Threshold: <span className="text-[#4ade80] font-black ml-1">60%</span>
           </span>
         </div>
       </div>
@@ -116,7 +159,9 @@ export function AIConfidenceMeter() {
       {/* Recent detections confidence */}
       <div className="mt-6 space-y-4">
         <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em]">Latest Inference</div>
-        {RECENT_DETECTIONS.map((det) => (
+        {recentDets.length === 0 ? (
+          <div className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Belum ada deteksi</div>
+        ) : recentDets.slice(0, 3).map((det, idx) => (
           <div key={det.label} className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-white/60 font-bold">{det.label}</span>
@@ -142,10 +187,10 @@ export function AIConfidenceMeter() {
         <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)" }}>
           <div className="flex items-center gap-2">
             <TrendingUp className="w-3.5 h-3.5 text-[#4ade80]" />
-            <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">CNN Model • YOLOv11</span>
+            <span className="text-[10px] text-white/40 font-black uppercase tracking-widest">CNN Model • v1.2</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[9px] text-white/20 font-bold uppercase">Training Set: 2,450 Assets</span>
+            <span className="text-[9px] text-white/20 font-bold uppercase">Threshold: 60%</span>
             <div className="w-1.5 h-1.5 rounded-full bg-[#4ade80]" />
           </div>
         </div>

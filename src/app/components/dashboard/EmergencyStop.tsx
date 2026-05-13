@@ -1,19 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Power, AlertTriangle } from "lucide-react";
-
-const STORAGE_KEY = "lokatani_devices";
-
-type Device = {
-  id: string;
-  name: string;
-  location: string;
-  status: "online" | "offline";
-  deviceType?: string;
-  metricValue?: string;
-  tools: any[];
-  createdAt: string;
-};
+import { Power, AlertTriangle, Loader2 } from "lucide-react";
+import { sendDeviceCommand } from "../../../lib/deviceCommands";
+import { useAuth } from "../../context/AuthContext";
 
 const C = {
   primary: "#328E6E",
@@ -24,48 +13,46 @@ const C = {
 };
 
 export function EmergencyStop() {
+  const { user } = useAuth();
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleEmergencyStop = () => {
+  const handleEmergencyStop = async () => {
     if (!showConfirm) {
       setShowConfirm(true);
       return;
     }
 
-    // Get current devices
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const devices: Device[] = JSON.parse(saved);
+    setLoading(true);
+    setError(null);
 
-      // Set all devices to offline
-      const updatedDevices = devices.map(device => ({
-        ...device,
-        status: "offline" as const
-      }));
+    const { ok, error: cmdErr } = await sendDeviceCommand(
+      "emergency_stop",
+      user?.email ?? "web_dashboard"
+    );
 
-      // Save back to localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDevices));
+    setLoading(false);
 
-      // Trigger storage event to update other components
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: STORAGE_KEY,
-        newValue: JSON.stringify(updatedDevices),
-        oldValue: saved
-      }));
+    if (!ok) {
+      setError(`Gagal kirim perintah: ${cmdErr}`);
+      setShowConfirm(false);
+      return;
     }
 
     setIsEmergencyMode(true);
     setShowConfirm(false);
 
-    // Reset after 5 seconds
+    // Tampilkan state emergency selama 8 detik, lalu reset UI
     setTimeout(() => {
       setIsEmergencyMode(false);
-    }, 5000);
+    }, 8000);
   };
 
   const handleCancel = () => {
     setShowConfirm(false);
+    setError(null);
   };
 
   return (
@@ -80,18 +67,18 @@ export function EmergencyStop() {
           background: isEmergencyMode
             ? `linear-gradient(135deg, ${C.danger}30, ${C.warning}30)`
             : "rgba(13, 43, 31, 0.4)",
-          border: isEmergencyMode 
-            ? `2px solid ${C.danger}40` 
+          border: isEmergencyMode
+            ? `2px solid ${C.danger}40`
             : "1px solid rgba(255, 255, 255, 0.08)",
           backdropFilter: "blur(20px)",
-          boxShadow: isEmergencyMode 
-            ? `0 0 50px ${C.danger}40` 
+          boxShadow: isEmergencyMode
+            ? `0 0 50px ${C.danger}40`
             : "0 8px 32px 0 rgba(0, 0, 0, 0.2)",
         }}
       >
         {/* Animated Background Glow when in emergency mode */}
         {isEmergencyMode && (
-          <motion.div 
+          <motion.div
             animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
             transition={{ duration: 2, repeat: Infinity }}
             className="absolute inset-0 bg-red-500 blur-3xl pointer-events-none"
@@ -102,14 +89,14 @@ export function EmergencyStop() {
           <div className="flex items-center gap-5">
             <div
               className={`w-14 h-14 rounded-[1.25rem] flex items-center justify-center transition-all duration-500 ${
-                isEmergencyMode ? 'animate-pulse' : ''
+                isEmergencyMode ? "animate-pulse" : ""
               }`}
               style={{
                 background: isEmergencyMode
                   ? `linear-gradient(135deg, ${C.danger}, ${C.warning})`
                   : `rgba(255, 255, 255, 0.05)`,
-                border: `1px solid ${isEmergencyMode ? 'transparent' : 'rgba(255, 255, 255, 0.1)'}`,
-                boxShadow: isEmergencyMode ? `0 0 30px ${C.danger}60` : 'none'
+                border: `1px solid ${isEmergencyMode ? "transparent" : "rgba(255, 255, 255, 0.1)"}`,
+                boxShadow: isEmergencyMode ? `0 0 30px ${C.danger}60` : "none",
               }}
             >
               {isEmergencyMode ? (
@@ -121,16 +108,25 @@ export function EmergencyStop() {
             <div>
               <h3
                 className="text-lg font-black tracking-tight uppercase"
-                style={{ color: isEmergencyMode ? "white" : "white" }}
+                style={{ color: "white" }}
               >
                 {isEmergencyMode ? "EMERGENCY ACTIVE" : "Emergency Stop"}
               </h3>
-              <p className="text-[11px] font-bold uppercase tracking-widest mt-1" style={{ color: isEmergencyMode ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)" }}>
+              <p
+                className="text-[11px] font-bold uppercase tracking-widest mt-1"
+                style={{
+                  color: isEmergencyMode
+                    ? "rgba(255,255,255,0.7)"
+                    : "rgba(255,255,255,0.3)",
+                }}
+              >
                 {isEmergencyMode
-                  ? "All systems offline for safety"
-                  : "Instant shutdown of all active devices"
-                }
+                  ? "Perintah emergency dikirim ke Raspberry Pi"
+                  : "Matikan semua perangkat aktif secara darurat"}
               </p>
+              {error && (
+                <p className="text-[11px] font-bold text-red-400 mt-1">{error}</p>
+              )}
             </div>
           </div>
 
@@ -140,24 +136,27 @@ export function EmergencyStop() {
                 <>
                   <button
                     onClick={handleCancel}
-                    className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:bg-white/10"
+                    disabled={loading}
+                    className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:bg-white/10 disabled:opacity-50"
                     style={{
                       background: "rgba(255, 255, 255, 0.05)",
                       color: "rgba(255, 255, 255, 0.6)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)"
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
                     }}
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleEmergencyStop}
-                    className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-105"
+                    disabled={loading}
+                    className="px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-105 disabled:opacity-50 flex items-center gap-2"
                     style={{
                       background: `linear-gradient(135deg, ${C.danger}, ${C.warning})`,
                       color: "white",
-                      boxShadow: `0 8px 25px ${C.danger}50`
+                      boxShadow: `0 8px 25px ${C.danger}50`,
                     }}
                   >
+                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Confirm Stop
                   </button>
                 </>
@@ -168,7 +167,7 @@ export function EmergencyStop() {
                   style={{
                     background: "rgba(255, 255, 255, 0.05)",
                     border: "1px solid rgba(255, 255, 255, 0.1)",
-                    color: "white"
+                    color: "white",
                   }}
                 >
                   <div className="flex items-center gap-3">
@@ -183,10 +182,12 @@ export function EmergencyStop() {
           {isEmergencyMode && (
             <div className="text-right">
               <div className="inline-block px-3 py-1 rounded-lg bg-white/10 border border-white/20 mb-1">
-                <span className="text-[10px] text-white font-black uppercase tracking-widest animate-pulse">Restarting System...</span>
+                <span className="text-[10px] text-white font-black uppercase tracking-widest animate-pulse">
+                  Perintah Terkirim...
+                </span>
               </div>
               <p className="text-[9px] font-bold text-white/40 uppercase tracking-tighter">
-                Manual override available in 5s
+                Raspberry Pi akan berhenti dalam ~3 detik
               </p>
             </div>
           )}

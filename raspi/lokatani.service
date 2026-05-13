@@ -1,0 +1,24 @@
+[Unit]
+Description=Lokatani Guard - IoT Pest Detection Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Sesuaikan 'User' dengan username Raspberry Pi kamu (biasanya 'pi')
+User=pi
+
+# Sesuaikan path ini dengan folder tempat kamu menyimpan script Lokatani di RPi
+WorkingDirectory=/home/pi/LOKATANI/raspi
+ExecStart=/usr/bin/python3 /home/pi/LOKATANI/raspi/main_detect.py --mode yolo
+
+# Auto-restart jika error/mati
+Restart=always
+RestartSec=10
+
+# Simpan log ke file
+StandardOutput=append:/var/log/lokatani_guard.log
+StandardError=append:/var/log/lokatani_guard_error.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { BarChart3, TrendingUp, PieChart as PieIcon } from "lucide-react";
+import { supabase } from "../../../lib/supabase";
 
 const C = {
   primary: "#328E6E",
@@ -12,28 +13,6 @@ const C = {
   accent: "#90C67C",
   bg: "#E1EEBC",
 };
-
-const DAILY_DATA = [
-  { day: "Sel", caterpillar: 4, grasshopper: 2, rat: 1 },
-  { day: "Rab", caterpillar: 6, grasshopper: 3, rat: 0 },
-  { day: "Kam", caterpillar: 2, grasshopper: 5, rat: 2 },
-  { day: "Jum", caterpillar: 8, grasshopper: 1, rat: 1 },
-  { day: "Sab", caterpillar: 3, grasshopper: 4, rat: 3 },
-  { day: "Min", caterpillar: 5, grasshopper: 2, rat: 0 },
-  { day: "Sen", caterpillar: 7, grasshopper: 6, rat: 2 },
-];
-
-const HOURLY_DATA = [
-  { hour: "06", detections: 1 }, { hour: "07", detections: 0 }, { hour: "08", detections: 3 },
-  { hour: "09", detections: 2 }, { hour: "10", detections: 5 }, { hour: "11", detections: 4 },
-  { hour: "12", detections: 2 }, { hour: "13", detections: 6 }, { hour: "14", detections: 8 },
-  { hour: "15", detections: 3 }, { hour: "16", detections: 4 }, { hour: "17", detections: 2 },
-];
-
-const PEST_DIST = [
-  { name: "Caterpillar", value: 56, color: "#ef4444" },
-  { name: "Grasshopper", value: 44, color: "#f59e0b" },
-];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -49,8 +28,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     >
       <div className="text-xs text-white mb-1" style={{ fontWeight: 600 }}>{label}</div>
       {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
-          <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+        <div key={p.dataKey || p.name} className="flex items-center gap-2 text-xs">
+          <div className="w-2 h-2 rounded-full" style={{ background: p.color || p.payload?.color }} />
           <span style={{ color: "rgba(255,255,255,0.6)" }}>{p.name}:</span>
           <span style={{ color: "white", fontWeight: 600 }}>{p.value}</span>
         </div>
@@ -61,6 +40,89 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function AnalyticsPanel() {
   const [activeTab, setActiveTab] = useState<"trend" | "hourly" | "dist">("trend");
+  const [dailyData, setDailyData] = useState<any[]>([]);
+  const [hourlyData, setHourlyData] = useState<any[]>([]);
+  const [pestDist, setPestDist] = useState<any[]>([]);
+  const [stats, setStats] = useState({ total7d: 0, dominant: "-", peakHour: "-" });
+
+  useEffect(() => {
+    const loadData = async () => {
+      const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
+      const { data } = await supabase
+        .from("pest_detection")
+        .select("timestamp, pest_type")
+        .eq("record_type", "detection")
+        .gte("timestamp", todayIso)
+        .neq("pest_type", "Whitefly")
+        .neq("pest_type", "Aphid")
+        .order("timestamp", { ascending: false });
+
+      if (!data) return;
+
+      const counts: Record<string, number> = {};
+      const hours: Record<string, number> = {};
+      const days: Record<string, any> = {};
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayName = d.toLocaleDateString("id-ID", { weekday: 'short' });
+        days[dayName] = { day: dayName, Ulat: 0, Belalang: 0, Caterpillar: 0, Grasshopper: 0 };
+      }
+
+      data.forEach(row => {
+        const ts = new Date(row.timestamp);
+        const pest = row.pest_type || "Unknown";
+
+        counts[pest] = (counts[pest] || 0) + 1;
+
+        const hr = ts.getHours().toString().padStart(2, '0');
+        hours[hr] = (hours[hr] || 0) + 1;
+
+        const dayName = ts.toLocaleDateString("id-ID", { weekday: 'short' });
+        if (days[dayName]) {
+          days[dayName][pest] = (days[dayName][pest] || 0) + 1;
+        }
+      });
+
+      const distData = Object.keys(counts).map(k => ({
+        name: k,
+        value: counts[k],
+        color: k.toLowerCase().includes("ulat") || k.toLowerCase().includes("caterpillar") ? "#ef4444" : "#f59e0b"
+      }));
+
+      const hourData = Object.keys(hours).map(h => ({ hour: h, detections: hours[h] })).sort((a,b) => a.hour.localeCompare(b.hour));
+      const dailyArr = Object.values(days);
+
+      let dom = "-";
+      let max = 0;
+      for (let k in counts) { if (counts[k] > max) { max = counts[k]; dom = k; } }
+
+      let peak = "-";
+      let maxH = 0;
+      for (let h in hours) { if (hours[h] > maxH) { maxH = hours[h]; peak = `${h}:00`; } }
+
+      setDailyData(dailyArr);
+      setHourlyData(hourData);
+      setPestDist(distData);
+      setStats({ total7d: data.length, dominant: dom, peakHour: peak });
+    };
+
+    loadData();
+
+    const channel = supabase
+      .channel("analytics_sync")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "pest_detection" }, (payload) => {
+        const row = payload.new as any;
+        const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
+        if (row.timestamp >= todayIso) {
+          loadData();
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const tabs = [
     { id: "trend", label: "Daily Trend", icon: TrendingUp },
@@ -115,9 +177,9 @@ export function AnalyticsPanel() {
       {/* Summary chips */}
       <div className="flex items-center gap-4 mb-8 overflow-x-auto custom-scrollbar pb-2">
         {[
-          { label: "7D Total", value: "47", color: "#90C67C", sub: "Detections" },
-          { label: "Dominant", value: "Caterpillar", color: "#ef4444", sub: "Species" },
-          { label: "Peak Hour", value: "14:00", color: "#f59e0b", sub: "Intensity" },
+          { label: "Total Data", value: stats.total7d, color: "#90C67C", sub: "Detections" },
+          { label: "Dominant", value: stats.dominant, color: "#ef4444", sub: "Species" },
+          { label: "Peak Hour", value: stats.peakHour, color: "#f59e0b", sub: "Intensity" },
         ].map(({ label, value, color, sub }) => (
           <div
             key={label}
@@ -125,7 +187,7 @@ export function AnalyticsPanel() {
             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
           >
             <div className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">{label}</div>
-            <div className="text-lg font-black tracking-tight" style={{ color }}>{value}</div>
+            <div className="text-lg font-black tracking-tight truncate" style={{ color }}>{value}</div>
             <div className="text-[8px] font-bold text-white/10 uppercase tracking-widest mt-0.5">{sub}</div>
           </div>
         ))}
@@ -144,7 +206,7 @@ export function AnalyticsPanel() {
           >
             {activeTab === "trend" && (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={DAILY_DATA} barCategoryGap="35%">
+                <BarChart data={dailyData} barCategoryGap="35%">
                   <defs>
                     <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#328E6E" stopOpacity={0.8} />
@@ -161,16 +223,17 @@ export function AnalyticsPanel() {
                     iconType="circle"
                     wrapperStyle={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", paddingBottom: 20, color: "rgba(255,255,255,0.3)" }}
                   />
-                  <Bar dataKey="caterpillar" name="Caterpillar" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="grasshopper" name="Grasshopper" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="rat" name="Rat" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Ulat" name="Ulat" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Belalang" name="Belalang" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Caterpillar" name="Caterpillar" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Grasshopper" name="Grasshopper" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
 
             {activeTab === "hourly" && (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={HOURLY_DATA}>
+                <AreaChart data={hourlyData}>
                   <defs>
                     <linearGradient id="detGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#328E6E" stopOpacity={0.4} />
@@ -203,7 +266,7 @@ export function AnalyticsPanel() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={PEST_DIST}
+                        data={pestDist}
                         cx="50%"
                         cy="50%"
                         innerRadius={65}
@@ -212,7 +275,7 @@ export function AnalyticsPanel() {
                         dataKey="value"
                         stroke="none"
                       >
-                        {PEST_DIST.map((entry, index) => (
+                        {pestDist.map((entry, index) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={entry.color}
@@ -225,12 +288,12 @@ export function AnalyticsPanel() {
                   </ResponsiveContainer>
                 </div>
                 <div className="grid grid-cols-1 gap-4">
-                  {PEST_DIST.map((p) => (
+                  {pestDist.map((p) => (
                     <div key={p.name} className="flex items-center gap-4 px-5 py-3 rounded-2xl bg-white/2 border border-white/5 min-w-[160px]">
                       <div className="w-3 h-3 rounded-full" style={{ background: p.color, boxShadow: `0 0 15px ${p.color}` }} />
                       <div>
                         <div className="text-[10px] font-black text-white uppercase tracking-widest">{p.name}</div>
-                        <div className="text-lg font-black mt-0.5" style={{ color: p.color }}>{p.value}%</div>
+                        <div className="text-lg font-black mt-0.5" style={{ color: p.color }}>{p.value}</div>
                       </div>
                     </div>
                   ))}

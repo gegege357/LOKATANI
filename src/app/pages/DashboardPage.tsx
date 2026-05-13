@@ -1,14 +1,13 @@
 import React from "react";
 import { StatusCards } from "../components/dashboard/StatusCards";
-import { DeviceAlerts } from "../components/dashboard/DeviceAlerts";
 import { EmergencyStop } from "../components/dashboard/EmergencyStop";
 import { AIConfidenceMeter } from "../components/dashboard/AIConfidenceMeter";
 import { SystemHealth } from "../components/dashboard/SystemHealth";
 import { SprayerControl } from "../components/dashboard/SprayerControl";
 import { ActivityTimeline } from "../components/dashboard/ActivityTimeline";
 import { DetectionHistory } from "../components/dashboard/DetectionHistory";
-import { AnalyticsPanel } from "../components/dashboard/AnalyticsPanel";
 import { SnapshotGallery } from "../components/dashboard/SnapshotGallery";
+import { AnalyticsPanel } from "../components/dashboard/AnalyticsPanel";
 import { motion } from "framer-motion";
 import { Leaf, LayoutDashboard } from "lucide-react";
 
@@ -52,9 +51,6 @@ export function DashboardPage() {
       {/* Emergency Stop Button */}
       <EmergencyStop />
 
-      {/* Device Alerts */}
-      <DeviceAlerts />
-
       {/* Status Cards Row */}
       <StatusCards />
 
@@ -90,17 +86,19 @@ export function DashboardPage() {
           <SprayerControl />
         </motion.div>
 
-        {/* Activity Timeline - spans 2 cols */}
+        {/* Activity Timeline - spans 3 cols */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="lg:col-span-2"
+          className="lg:col-span-3"
         >
           <ActivityTimeline />
         </motion.div>
+      </div>
 
-        {/* Snapshot Gallery */}
+      {/* Third Row - Snapshot Gallery full width */}
+      <div className="px-4 lg:px-6 mt-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

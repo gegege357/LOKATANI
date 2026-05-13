@@ -20,18 +20,14 @@ interface Activity {
   confidence?: number;
 }
 
-const INITIAL_ACTIVITIES: Activity[] = [
-  {
-    id: "a6", type: "system", message: "Sistem Terhubung", detail: "Menunggu data dari Raspberry Pi...",
-    timestamp: new Date(), severity: "info",
-  },
-];
+const INITIAL_ACTIVITIES: Activity[] = [];
 
 const typeConfig = {
-  pest_detected: { icon: Bug, color: "#ef4444", bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.3)" },
-  motion_detected: { icon: ActivityIcon, color: "#f59e0b", bg: "rgba(245,158,11,0.15)", border: "rgba(245,158,11,0.3)" },
-  sprayer_activated: { icon: Droplets, color: "#38bdf8", bg: "rgba(56,189,248,0.15)", border: "rgba(56,189,248,0.3)" },
-  system: { icon: AlertCircle, color: C.accent, bg: "rgba(144,198,124,0.15)", border: "rgba(144,198,124,0.3)" },
+  pest_detected:    { icon: Bug,          color: "#ef4444", bg: "rgba(239,68,68,0.15)",    border: "rgba(239,68,68,0.3)" },
+  motion_detected:  { icon: ActivityIcon, color: "#f59e0b", bg: "rgba(245,158,11,0.15)",   border: "rgba(245,158,11,0.3)" },
+  sprayer_activated:{ icon: Droplets,     color: "#38bdf8", bg: "rgba(56,189,248,0.15)",   border: "rgba(56,189,248,0.3)" },
+  system:           { icon: AlertCircle,  color: C.accent,  bg: "rgba(144,198,124,0.15)",  border: "rgba(144,198,124,0.3)" },
+  heartbeat:        { icon: AlertCircle,  color: "#6366f1", bg: "rgba(99,102,241,0.12)",   border: "rgba(99,102,241,0.25)" },
 };
 
 function formatRelTime(date: Date) {
@@ -86,10 +82,11 @@ export function ActivityTimeline() {
     const fetchActivities = async () => {
       try {
         const { data, error } = await supabase
-          .from("pest_detections")
+          .from("pest_detection")
           .select("*")
+          .in("record_type", ["detection", "emergency"])
           .order("timestamp", { ascending: false })
-          .limit(10); // Ambil 10 deteksi terakhir
+          .limit(10);
 
         if (!error && data && data.length > 0) {
           let loadedActivities: Activity[] = [];
@@ -100,6 +97,8 @@ export function ActivityTimeline() {
           // Sort by timestamp desc and take max 15
           loadedActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
           setActivities(loadedActivities.slice(0, 15));
+        } else {
+          setActivities([]);
         }
       } catch (err) {
         console.error("Gagal load history activity:", err);
@@ -109,19 +108,17 @@ export function ActivityTimeline() {
     fetchActivities();
 
     const channel = supabase
-      .channel("activity_timeline_changes")
+      .channel("activity_timeline_v2")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "pest_detections" },
+        { event: "INSERT", schema: "public", table: "pest_detection" },
         (payload) => {
           const newActivities = mapSupabaseToActivity(payload.new);
           // Sort descending
           newActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
           setActivities((prev) => {
-            // Hilangkan "Sistem Terhubung" jika itu satu-satunya isi
-            const filteredPrev = prev.length === 1 && prev[0].type === "system" ? [] : prev;
-            return [...newActivities, ...filteredPrev].slice(0, 15);
+            return [...newActivities, ...prev].slice(0, 15);
           });
         }
       )

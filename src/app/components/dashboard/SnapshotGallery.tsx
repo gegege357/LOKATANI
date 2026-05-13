@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Images, X, ZoomIn } from "lucide-react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
+import { supabase } from "../../../lib/supabase";
 
 const C = {
   primary: "#328E6E",
@@ -10,31 +11,72 @@ const C = {
   accent: "#90C67C",
 };
 
-const SNAPSHOTS = [
-  {
-    id: "s1", pest: "Caterpillar", confidence: 94.2, time: "14:22",
-    image: "https://images.unsplash.com/photo-1763745364956-fec424842235?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=300",
-    color: "#ef4444",
-  },
-  {
-    id: "s2", pest: "Grasshopper", confidence: 88.7, time: "13:45",
-    image: "https://images.unsplash.com/photo-1727850248657-29d04eceacca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=300",
-    color: "#f59e0b",
-  },
-  {
-    id: "s3", pest: "Caterpillar", confidence: 91.5, time: "12:30",
-    image: "https://images.unsplash.com/photo-1744451472267-ae65e6e51096?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=300",
-    color: "#ef4444",
-  },
-  {
-    id: "s4", pest: "Grasshopper", confidence: 83.9, time: "09:52",
-    image: "https://images.unsplash.com/photo-1623413649787-d7c0c07b4f3b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=300",
-    color: "#f59e0b",
-  },
-];
+const PEST_COLORS: Record<string, string> = {
+  Caterpillar: "#ef4444",
+  Grasshopper: "#f59e0b",
+  default:     "#38bdf8",
+};
+
+type Snap = { id: string; pest: string; confidence: number; time: string; image: string; color: string; };
+
+const FALLBACK_SNAPS: Snap[] = [];
 
 export function SnapshotGallery() {
-  const [selected, setSelected] = useState<typeof SNAPSHOTS[0] | null>(null);
+  const [snaps, setSnaps]     = useState<Snap[]>(FALLBACK_SNAPS);
+  const [selected, setSelected] = useState<Snap | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const todayIso = new Date(new Date().setHours(0,0,0,0)).toISOString();
+      const { data } = await supabase
+        .from("pest_detection")
+        .select("id, pest_type, confidence, timestamp, image_url")
+        .eq("record_type", "detection")
+        .gte("timestamp", todayIso)
+        .neq("pest_type", "Whitefly")
+        .neq("pest_type", "Aphid")
+        .not("image_url", "is", null)
+        .neq("image_url", "")
+        .order("timestamp", { ascending: false })
+        .limit(6);
+
+      if (data && data.length > 0) {
+        setSnaps(data.map((d: any) => ({
+          id:         d.id,
+          pest:       d.pest_type ?? "Unknown",
+          confidence: d.confidence <= 1 ? +(d.confidence * 100).toFixed(1) : +d.confidence.toFixed(1),
+          time:       new Date(d.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          image:      d.image_url,
+          color:      PEST_COLORS[d.pest_type] ?? PEST_COLORS.default,
+        })));
+      } else {
+        setSnaps([]);
+      }
+    };
+    load();
+
+    const channel = supabase
+      .channel("snapshot_gallery")
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "pest_detection" },
+        (payload) => {
+          const row = payload.new as any;
+          if (row.record_type !== "detection" || !row.image_url || row.pest_type === "Whitefly" || row.pest_type === "Aphid") return;
+          const snap: Snap = {
+            id:         row.id,
+            pest:       row.pest_type ?? "Unknown",
+            confidence: row.confidence <= 1 ? +(row.confidence * 100).toFixed(1) : +row.confidence.toFixed(1),
+            time:       new Date(row.timestamp).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+            image:      row.image_url,
+            color:      PEST_COLORS[row.pest_type] ?? PEST_COLORS.default,
+          };
+          setSnaps((prev) => [snap, ...prev].slice(0, 6));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   return (
     <div
@@ -58,13 +100,13 @@ export function SnapshotGallery() {
         </div>
         <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
           <span className="text-[10px] font-black text-[#90C67C] uppercase tracking-widest">
-            {SNAPSHOTS.length} Assets
+            {snaps.length} Assets
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        {SNAPSHOTS.map((snap, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {snaps.map((snap, i) => (
           <motion.div
             key={snap.id}
             initial={{ opacity: 0, scale: 0.9 }}
@@ -98,11 +140,11 @@ export function SnapshotGallery() {
               className="absolute bottom-0 left-0 right-0 p-3"
               style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9), transparent)" }}
             >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-white text-[10px] font-black uppercase tracking-tight">{snap.pest}</span>
-                <span className="text-[10px] font-black" style={{ color: snap.color }}>{snap.confidence}%</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-white text-[10px] font-black uppercase tracking-wide truncate">{snap.pest}</span>
+                <span className="text-[10px] font-black" style={{ color: snap.color }}>{snap.confidence}% Match</span>
               </div>
-              <div className="text-[9px] font-bold text-white/30 uppercase tracking-tighter">{snap.time} • Camera Link</div>
+              <div className="text-[8px] font-bold text-white/50 uppercase tracking-widest mt-1 truncate">{snap.time}</div>
             </div>
 
             {/* Bounding box hint */}

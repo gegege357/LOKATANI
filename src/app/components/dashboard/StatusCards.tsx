@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Bug, Activity, Droplets, Wifi, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Bug, Activity, Droplets, Wifi, TrendingUp, TrendingDown, Camera } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
 const C = {
@@ -9,210 +9,151 @@ const C = {
   accent: "#90C67C",
 };
 
-type DeviceTool = {
-  id: string;
-  name: string;
-  type: string;
-  status: "active" | "idle" | "maintenance";
-  notes: string;
-};
-
-type Device = {
-  id: string;
-  name: string;
-  location: string;
-  status: "online" | "offline";
-  tools: DeviceTool[];
-  createdAt: string;
-};
-
-const STORAGE_KEY = "lokatani_devices";
-
-const CARDS = [
-  {
-    id: "pest",
-    title: "Pest Detection",
-    value: "3",
-    sub: "deteksi hari ini",
-    status: "warning",
-    statusLabel: "Aktif Memantau",
-    icon: Bug,
-    trend: "+2",
-    trendUp: true,
-    glow: "#f59e0b",
-    gradient: "linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05))",
-    border: "rgba(245,158,11,0.3)",
-  },
-  {
-    id: "pir",
-    title: "PIR Motion",
-    value: "7",
-    sub: "gerakan terdeteksi",
-    status: "active",
-    statusLabel: "Online",
-    icon: Activity,
-    trend: "Normal",
-    trendUp: true,
-    glow: C.primary,
-    gradient: "linear-gradient(135deg, rgba(50,142,110,0.2), rgba(50,142,110,0.05))",
-    border: `rgba(50,142,110,0.35)`,
-  },
-  {
-    id: "sprayer",
-    title: "Sprayer Pump",
-    value: "2x",
-    sub: "spray hari ini",
-    status: "active",
-    statusLabel: "Standby",
-    icon: Droplets,
-    trend: "Siap",
-    trendUp: true,
-    glow: "#38bdf8",
-    gradient: "linear-gradient(135deg, rgba(56,189,248,0.15), rgba(56,189,248,0.05))",
-    border: "rgba(56,189,248,0.3)",
-  },
-  {
-    id: "network",
-    title: "Network Status",
-    value: "98%",
-    sub: "uptime koneksi",
-    status: "active",
-    statusLabel: "Connected",
-    icon: Wifi,
-    trend: "Stabil",
-    trendUp: true,
-    glow: C.secondary,
-    gradient: "linear-gradient(135deg, rgba(103,174,110,0.2), rgba(103,174,110,0.05))",
-    border: `rgba(103,174,110,0.35)`,
-  },
-];
-
 const statusColors: Record<string, string> = {
-  active: "#4ade80",
+  active:  "#4ade80",
   warning: "#f59e0b",
   offline: "#ef4444",
 };
 
 export function StatusCards() {
-  const [alertSummary, setAlertSummary] = useState({ total: 0, high: 0, medium: 0 });
-  const [pestCountToday, setPestCountToday] = useState("0");
-  const [sprayCountToday, setSprayCountToday] = useState("0x");
+  const [pestCountToday, setPestCountToday]   = useState(0);
+  const [sprayCountToday, setSprayCountToday] = useState(0);
+  const [motionToday, setMotionToday]         = useState(0);
+  const [cameraOnline, setCameraOnline]       = useState(false);
+  const [rcwlOnline, setRcwlOnline]           = useState(false);
+  const [relayActive, setRelayActive]         = useState(false);
+  const [rpiOnline, setRpiOnline]             = useState(false);
+  const [systemState, setSystemState]         = useState("IDLE");
 
   useEffect(() => {
-    // Fetch today's data from Supabase
-    const fetchTodayStats = async () => {
-      try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayIso = today.toISOString();
+    const fetchStats = async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-        const { data, error } = await supabase
-          .from("pest_detections")
-          .select("id, spray_status")
-          .gte("timestamp", todayIso);
+      // Today detections
+      const { data: todayData } = await supabase
+        .from("pest_detection")
+        .select("id, spray_status, rcwl_status, record_type")
+        .gte("timestamp", today.toISOString());
 
-        if (!error && data) {
-          setPestCountToday(data.length.toString());
-          const sprayCount = data.filter((d: any) => d.spray_status === true).length;
-          setSprayCountToday(`${sprayCount}x`);
-        }
-      } catch (err) {
-        console.error("Error fetching today's stats:", err);
+      if (todayData) {
+        const detections = todayData.filter((d: any) => d.record_type === "detection");
+        setPestCountToday(detections.length);
+        setSprayCountToday(detections.filter((d: any) => d.spray_status).length);
+        setMotionToday(todayData.filter((d: any) => d.rcwl_status).length);
+      }
+
+      // Latest heartbeat for device status
+      const { data: hb } = await supabase
+        .from("pest_detection")
+        .select("camera_status, rcwl_status, relay_status, system_state, timestamp")
+        .eq("record_type", "heartbeat")
+        .order("timestamp", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (hb) {
+        const isRecent = (Date.now() - new Date(hb.timestamp).getTime()) < 30_000;
+        setCameraOnline(hb.camera_status && isRecent);
+        setRcwlOnline(hb.rcwl_status);
+        setRelayActive(hb.relay_status);
+        setRpiOnline(isRecent);
+        setSystemState(hb.system_state ?? "IDLE");
       }
     };
 
-    fetchTodayStats();
+    fetchStats();
 
-    // Subscribe to realtime inserts
+    // Realtime subscribe
     const channel = supabase
-      .channel("status_cards_changes")
+      .channel("status_cards_v2")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "pest_detections" },
+        { event: "INSERT", schema: "public", table: "pest_detection" },
         (payload) => {
-          // Increment count based on payload
-          setPestCountToday((prev) => (parseInt(prev) + 1).toString());
-          if (payload.new.spray_status === true) {
-             setSprayCountToday((prev) => `${parseInt(prev.replace('x', '')) + 1}x`);
+          const row = payload.new as any;
+          const ts  = new Date(row.timestamp);
+          const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+
+          if (row.record_type === "heartbeat") {
+            const isRecent = (Date.now() - ts.getTime()) < 30_000;
+            setCameraOnline(row.camera_status && isRecent);
+            setRcwlOnline(row.rcwl_status);
+            setRelayActive(row.relay_status);
+            setRpiOnline(isRecent);
+            setSystemState(row.system_state ?? "IDLE");
+          }
+          if (row.record_type === "detection" && ts >= todayStart) {
+            setPestCountToday((p) => p + 1);
+            if (row.spray_status) setSprayCountToday((p) => p + 1);
+          }
+          if (row.rcwl_status && ts >= todayStart) {
+            setMotionToday((p) => p + 1);
           }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
-  useEffect(() => {
-    const loadAlerts = () => {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) {
-          setAlertSummary({ total: 0, high: 0, medium: 0 });
-          return;
-        }
-
-        const devices: Device[] = JSON.parse(saved);
-        let high = 0;
-        let medium = 0;
-
-        devices.forEach((device) => {
-          if (device.status === "offline") {
-            high += 1;
-          }
-          device.tools.forEach((tool) => {
-            if (tool.status === "maintenance") {
-              medium += 1;
-            }
-          });
-        });
-
-        setAlertSummary({ total: high + medium, high, medium });
-      } catch (error) {
-        console.error("Error loading device alerts:", error);
-      }
-    };
-
-    loadAlerts();
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) {
-        loadAlerts();
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
-  const alertCard = {
-    id: "device_alerts",
-    title: "Device Alerts",
-    value: alertSummary.total.toString(),
-    sub: "peringatan aktif",
-    status: alertSummary.high > 0 ? "offline" : alertSummary.medium > 0 ? "warning" : "active",
-    statusLabel: alertSummary.high > 0 ? "Kritis" : alertSummary.medium > 0 ? "Perhatian" : "Aman",
-    icon: AlertTriangle,
-    trend: alertSummary.high > 0 ? `${alertSummary.high} kritis` : alertSummary.medium > 0 ? `${alertSummary.medium} alert` : "Sistem Aman",
-    trendUp: alertSummary.high === 0,
-    glow: alertSummary.high > 0 ? "#ef4444" : alertSummary.medium > 0 ? "#f59e0b" : "#4ade80",
-  };
-
-  const dynamicCards = CARDS.map(card => {
-    if (card.id === "pest") return { ...card, value: pestCountToday };
-    if (card.id === "sprayer") return { ...card, value: sprayCountToday };
-    return card;
-  });
-
-  const cards = [...dynamicCards, alertCard];
+  const cards = [
+    {
+      id: "pest",
+      title: "Pest Detection",
+      value: pestCountToday.toString(),
+      sub: "deteksi hari ini",
+      status: pestCountToday > 0 ? "warning" : "active",
+      statusLabel: pestCountToday > 0 ? "Hama Ditemukan" : "Aman",
+      icon: Bug,
+      trend: pestCountToday > 0 ? `+${pestCountToday} hari ini` : "Tidak ada hama",
+      trendUp: pestCountToday === 0,
+      glow: pestCountToday > 0 ? "#f59e0b" : "#4ade80",
+    },
+    {
+      id: "motion",
+      title: "Motion (RCWL)",
+      value: motionToday.toString(),
+      sub: "trigger hari ini",
+      status: rcwlOnline ? "active" : "offline",
+      statusLabel: rcwlOnline ? "Aktif" : "Offline",
+      icon: Activity,
+      trend: rcwlOnline ? "Memantau" : "Sensor mati",
+      trendUp: rcwlOnline,
+      glow: rcwlOnline ? C.primary : "#ef4444",
+    },
+    {
+      id: "sprayer",
+      title: "Sprayer Pump",
+      value: `${sprayCountToday}x`,
+      sub: "spray hari ini",
+      status: relayActive ? "warning" : "active",
+      statusLabel: relayActive ? "Spraying" : "Standby",
+      icon: Droplets,
+      trend: relayActive ? "Aktif menyemprot" : "Siap",
+      trendUp: true,
+      glow: relayActive ? "#38bdf8" : C.secondary,
+    },
+    {
+      id: "camera",
+      title: "Kamera",
+      value: systemState,
+      sub: rpiOnline ? "RPi online" : "RPi offline",
+      status: rpiOnline ? (cameraOnline ? "active" : "warning") : "offline",
+      statusLabel: rpiOnline ? (cameraOnline ? "Rekam" : "Standby") : "Offline",
+      icon: Camera,
+      trend: rpiOnline ? "Terhubung" : "Tidak ada koneksi",
+      trendUp: rpiOnline,
+      glow: rpiOnline ? (cameraOnline ? "#4ade80" : C.accent) : "#ef4444",
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 px-4 lg:px-6 pt-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-4 lg:px-6 pt-6">
       {cards.map((card, i) => {
-        const Icon = card.icon;
+        const Icon  = card.icon;
         const color = card.glow;
-        
+
         return (
           <motion.div
             key={card.id}
@@ -228,8 +169,7 @@ export function StatusCards() {
               boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.2)",
             }}
           >
-            {/* Ambient Background Glow */}
-            <div 
+            <div
               className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-500 pointer-events-none"
               style={{ background: color, filter: "blur(40px)" }}
             />
@@ -237,10 +177,10 @@ export function StatusCards() {
             <div className="flex items-start justify-between mb-4">
               <div
                 className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
-                style={{ 
-                  background: `${color}15`, 
+                style={{
+                  background: `${color}15`,
                   border: `1px solid ${color}25`,
-                  boxShadow: `0 0 15px ${color}10`
+                  boxShadow: `0 0 15px ${color}10`,
                 }}
               >
                 <Icon className="w-5 h-5" style={{ color }} />
@@ -252,19 +192,28 @@ export function StatusCards() {
                   className="w-1.5 h-1.5 rounded-full"
                   style={{ background: statusColors[card.status] }}
                 />
-                <span className="text-[9px] uppercase tracking-widest font-black" style={{ color: statusColors[card.status] }}>
+                <span
+                  className="text-[9px] uppercase tracking-widest font-black"
+                  style={{ color: statusColors[card.status] }}
+                >
                   {card.statusLabel}
                 </span>
               </div>
             </div>
 
             <div className="space-y-0.5">
-              <div className="text-3xl text-white font-black tracking-tight">{card.value}</div>
-              <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest">{card.sub}</div>
+              <div className="text-3xl text-white font-black tracking-tight truncate">
+                {card.value}
+              </div>
+              <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
+                {card.sub}
+              </div>
             </div>
 
             <div className="mt-4 pt-4 border-t border-white/5 flex flex-col gap-2">
-              <div className="text-[11px] text-white/70 font-bold tracking-tight">{card.title}</div>
+              <div className="text-[11px] text-white/70 font-bold tracking-tight">
+                {card.title}
+              </div>
               <div className="flex items-center gap-1.5">
                 <div className="p-1 rounded-md bg-white/5">
                   {card.trendUp ? (
@@ -273,7 +222,10 @@ export function StatusCards() {
                     <TrendingDown className="w-3 h-3 text-[#ef4444]" />
                   )}
                 </div>
-                <span className="text-[10px] font-bold" style={{ color: card.trendUp ? "#4ade80" : "#ef4444" }}>
+                <span
+                  className="text-[10px] font-bold"
+                  style={{ color: card.trendUp ? "#4ade80" : "#ef4444" }}
+                >
                   {card.trend}
                 </span>
               </div>
